@@ -64,3 +64,7 @@ packages/
 
 #Test files
 *.testsettings
+
+#XCode 
+DerivedData/
+*.xcuserdatad/

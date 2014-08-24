@@ -522,15 +522,11 @@ unique_ptr<Object> LoadScene(const aiScene* scene)
 	vector<Object*> materials;
 	vector<Object*> meshes;
 
-
-
-
-
-
+    return nullptr;
 }
 
 
-int main(int argc, const char* args)
+int main(int argc, const char* args[])
 {
 	fstream file("File.js", fstream::out | fstream::binary);
 
