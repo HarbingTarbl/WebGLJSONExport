@@ -1,5 +1,6 @@
 #include <assimp/scene.h>
 #include <assimp/Importer.hpp>
+#include <assimp/postprocess.h>
 
 #include <iostream>
 #include <string>
@@ -30,7 +31,7 @@ public:
 		assignedName = str;
 	}
 
-	virtual ~BaseObject() = default;
+	virtual ~BaseObject() {};
 
 protected:
 
@@ -39,6 +40,32 @@ protected:
 
 };
 
+class ArrayObject
+    : public BaseObject
+{
+public:
+    vector<unique_ptr<BaseObject>> Objects;
+    
+    
+    virtual void Print(ostream& out)
+    {
+        out << " [ ";
+        for(int i = 0; i < (int)Objects.size() - 1; i++)
+        {
+            Objects[i]->Print(out);
+            out << " , ";
+        }
+        if(Objects.size() > 0)
+        {
+            Objects[0]->Print(out);
+        }
+        out << " ] ";
+    }
+    
+    
+    
+    
+};
 
 class TypedArrayObject
 	: public BaseObject
@@ -248,7 +275,7 @@ public:
 			f->second->AssignTo("");
 			object->AssignTo(name);
 			objects[name] = move(object);
-			cout << "Replacement of existing object, was this supposed to happen?" << endl;
+			cout << "Replacement of existing object \"" << name << "\" was this supposed to happen?" << endl;
 		}
 	}
 
@@ -312,7 +339,7 @@ public:
 
 		out << " { ";
 
-		for (int i = 0; i < sortedObjects.size() - 1; i++)
+		for (int i = 0; i < (int)sortedObjects.size() - 1; i++)
 		{
 			out << sortedObjects[i]->AssignedTo() << " : ";
 			sortedObjects[i]->Print(out);
@@ -352,6 +379,62 @@ unique_ptr<TypedArrayObject> LoadMatrix(const aiMatrix4x4& mat)
 	return move(obj);
 }
 
+
+string GetTextureTypeString(aiTextureType type)
+{
+    switch(type)
+    {
+        case aiTextureType_AMBIENT:
+            return "ambient";
+        case aiTextureType_DISPLACEMENT:
+            return "displacement";
+        case aiTextureType_DIFFUSE:
+            return "diffuse";
+        case aiTextureType_EMISSIVE:
+            return "emissive";
+        case aiTextureType_HEIGHT:
+            return "height";
+        case aiTextureType_LIGHTMAP:
+            return "lightmap";
+        case aiTextureType_NONE:
+            return "none";
+        case aiTextureType_NORMALS:
+            return "normals";
+        case aiTextureType_OPACITY:
+            return "opacity";
+        case aiTextureType_REFLECTION:
+            return "reflection";
+        case aiTextureType_SHININESS:
+            return "shininess";
+        case aiTextureType_SPECULAR:
+            return "specular";
+        case aiTextureType_UNKNOWN:
+            return "unknown-have-fun";
+        default:
+            return "bad-texture-type";
+    }
+}
+
+unique_ptr<Object> LoadTexture(const aiMaterial* mat, aiTextureType texture)
+{
+    aiString texturePath;
+    aiTextureMapMode mapMode;
+    aiTextureMapping mapping;
+    aiTextureOp op;
+    unsigned int uvIndex;
+    float blending;
+
+    
+    if(mat->GetTexture(texture, 0, &texturePath, &mapping, &uvIndex, &blending, &op, &mapMode) == aiReturn_FAILURE)
+        return nullptr;
+    
+    unique_ptr<Object> texObj(new Object());
+    texObj->Set("src", string(texturePath.C_Str()));
+    texObj->Set("type", GetTextureTypeString(texture));
+    
+    return texObj;
+}
+
 unique_ptr<Object> LoadMaterial(const aiMaterial* mat)
 {
 	unique_ptr<Object> matObj(new Object());
@@ -372,99 +455,133 @@ unique_ptr<Object> LoadMaterial(const aiMaterial* mat)
 	matObj->Set("specular_color", LoadColor(specularColor));
 	matObj->Set("ambient_color", LoadColor(ambientColor));
 
-
-	mat->GetTexture(aiTextureType_DIFFUSE, 0, &diffuseTexture);
-	mat->GetTexture(aiTextureType_NORMALS, 0, &normalTexture);
-
-	matObj->Set("diffuse_texture", string(diffuseTexture.C_Str()));
-	matObj->Set("normal_texture", string(normalTexture.C_Str()));
+    
+    const aiTextureType texTypes[] = {
+        aiTextureType_AMBIENT,
+        aiTextureType_DIFFUSE,
+        aiTextureType_DISPLACEMENT,
+        aiTextureType_EMISSIVE,
+        aiTextureType_HEIGHT,
+        aiTextureType_LIGHTMAP,
+        aiTextureType_NONE,
+        aiTextureType_NORMALS,
+        aiTextureType_OPACITY,
+        aiTextureType_REFLECTION,
+        aiTextureType_SHININESS,
+        aiTextureType_SPECULAR,
+        aiTextureType_UNKNOWN,
+    };
+    
+    for(auto t : texTypes)
+    {
+        auto texObj = LoadTexture(mat, t);
+        if(texObj)
+        {
+            matObj->Set(GetTextureTypeString(t) + "_texture", move(texObj));
+        }
+    }
+    
 
 	return move(matObj);
 }
 
-unique_ptr<Object> LoadMesh(vector<Object*>& materials, const aiMesh* mesh, const aiScene* scene)
+unique_ptr<Object> LoadMesh(const vector<Object*>& materials, const aiMesh* mesh, const aiScene* scene)
 {
 	unique_ptr<Object> meshObj(new Object());
+    unique_ptr<Object> offsetsObj(new Object());
 
 	meshObj->Set("name", string(mesh->mName.C_Str()));
 
-	//enum flags
-	//{
-	//	HAS_POSITION = 1,
-	//	HAS_NORMAL = 2,
-	//	HAS_TANGENT_BITANGENT = 4,
-	//	HAS_TEXTURE0 = 8,
-	//	HAS_COLOR0 = 16,
-	//};
+    enum flags
+    {
+        HAS_POSITION = 1,
+        HAS_NORMAL = 2,
+        HAS_TANGENT_BITANGENT = 4,
+        HAS_TEXTURE0 = 8,
+        HAS_COLOR0 = 16,
+    };
 
-	//int f = 0;
-	//int vertexSize = 0;
-	//float* base;
-	//vector<function<void()>> readers;
+    int f = 0;
+    int vertexSize = 0;
+    int vertexOffset = 0;
+    float* base;
+    vector<function<void()>> readers;
 
 
-	//if (mesh->HasPositions())
-	//{
-	//	f |= HAS_POSITION;
-	//	vertexSize += 3;
-	//	readers.emplace_back([&base, mesh, &vertexSize](){
-	//		for (int i = 0; i < mesh->mNumVertices; i++)
-	//		{
-	//			copy_n(mesh->mVertices[i], 3, base + i * vertexSize);
-	//		}
-	//	});
-	//}
-	//if (mesh->HasNormals())
-	//{
-	//	f |= HAS_NORMAL;
-	//	vertexSize += 3;
-	//	readers.emplace_back([&base, mesh, &vertexSize](){
-	//		for (int i = 0; i < mesh->mNumVertices; i++)
-	//		{
-	//			copy_n(mesh->mNormals[i], 3, base + i * vertexSize + 3);
-	//		}
-	//	});
-	//}
-	//if (mesh->HasTangentsAndBitangents())
-	//{
-	//	f |= HAS_TANGENT_BITANGENT;
-	//	vertexSize += 6;
-	//	readers.emplace_back([&base, mesh, &vertexSize](){
-	//		for (int i = 0; i < mesh->mNumVertices; i++)
-	//		{
-	//			copy_n(mesh->mTangents[i], 3, base + i * vertexSize + 6);
-	//			copy_n(mesh->mTangents[i], 3, base + i * vertexSize + 9);
-	//		}
-	//	});
-	//}
-	//if (mesh->HasTextureCoords(0))
-	//{
-	//	f |= HAS_TEXTURE0;
-	//	vertexSize += 2;
-	//}
-	//if (mesh->HasVertexColors(0))
-	//{
-	//	f |= HAS_COLOR0;
-	//	vertexSize += 4;
-	//}
-
+    if (mesh->HasPositions())
+    {
+        f |= HAS_POSITION;
+        vertexSize += 3;
+        readers.emplace_back([&base, mesh, &vertexSize, vertexOffset](){
+            for (int i = 0; i < mesh->mNumVertices; i++)
+            {
+                copy_n(&mesh->mVertices[i].x, 3, base + i * vertexSize + vertexOffset);
+            }
+        });
+        offsetsObj->Set("position", vertexOffset);
+        vertexOffset += 3;
+    }
+    if (mesh->HasNormals())
+    {
+        f |= HAS_NORMAL;
+        vertexSize += 3;
+        readers.emplace_back([&base, mesh, &vertexSize, vertexOffset](){
+            for (int i = 0; i < mesh->mNumVertices; i++)
+            {
+                copy_n(&mesh->mNormals[i].x, 3, base + i * vertexSize + vertexOffset);
+            }
+        });
+        offsetsObj->Set("normal", vertexOffset);
+        vertexOffset += 3;
+    }
+    if (mesh->HasTangentsAndBitangents())
+    {
+        f |= HAS_TANGENT_BITANGENT;
+        vertexSize += 6;
+        readers.emplace_back([&base, mesh, &vertexSize, vertexOffset](){
+            for (int i = 0; i < mesh->mNumVertices; i++)
+            {
+                copy_n(&mesh->mTangents[i].x, 3, base + i * vertexSize + vertexOffset);
+                copy_n(&mesh->mTangents[i].x, 3, base + i * vertexSize + vertexOffset + 3);
+            }
+        });
+        offsetsObj->Set("tangent", vertexOffset);
+        offsetsObj->Set("bitangent", vertexOffset + 3);
+        vertexOffset += 6;
+    }
+    if (mesh->HasTextureCoords(0))
+    {
+        f |= HAS_TEXTURE0;
+        vertexSize += 2;
+        readers.emplace_back([&base, mesh, &vertexSize, vertexOffset](){
+            for(int i = 0; i < mesh->mNumVertices; i++)
+            {
+                copy_n(&mesh->mTextureCoords[0][i].x, 2, base + i * vertexSize + vertexOffset);
+            }
+        });
+        offsetsObj->Set("uv0", vertexOffset);
+        vertexOffset += 2;
+    }
+    if (mesh->HasVertexColors(0))
+    {
+        f |= HAS_COLOR0;
+        vertexSize += 4;
+    }
+    
+    meshObj->Set("offsets", move(offsetsObj));
+    
 
 	{
 		//Yea this is hard coded. Ignore the stuff before this. It's 6AM.
-		int vertexSize = 14;
-		unique_ptr<TypedArrayObject> vertices(new TypedArrayObject(TypedArrayObject::Type::Float32, vertexSize));
-		for (int i = 0; i < mesh->mNumVertices; i++)
-		{
-			copy_n(&mesh->mVertices[i].x, 3, vertices->Data<float>() + i * vertexSize);
-
-			copy_n(&mesh->mNormals[i].x, 3, vertices->Data<float>() + i * vertexSize + 3);
-
-			copy_n(&mesh->mTangents[i].x, 3, vertices->Data<float>() + i * vertexSize + 6);
-
-			copy_n(&mesh->mBitangents[i].x, 3, vertices->Data<float>() + i * vertexSize + 9);
-
-			copy_n(&mesh->mTextureCoords[0][i].x, 2, vertices->Data<float>() + i * vertexSize + 12);
-		}
+		unique_ptr<TypedArrayObject> vertices(new TypedArrayObject(TypedArrayObject::Type::Float32, vertexSize * mesh->mNumVertices));
+		
+        base = vertices->Data<float>();
+        for(auto&& reader : readers)
+        {
+            reader();
+        }
+        
+        meshObj->Set("flags", f);
 		meshObj->Set("vertices", move(vertices));
 	}
 
@@ -505,24 +622,59 @@ unique_ptr<Object> LoadMesh(vector<Object*>& materials, const aiMesh* mesh, cons
 
 
 
-unique_ptr<Object> LoadNode(vector<Object*>& materials, vector<Object*>& meshes, const aiNode* node, const aiScene* scene)
+unique_ptr<Object> LoadNode(const vector<unique_ptr<Object>>& materials, vector<unique_ptr<Object>>& meshes, const aiNode* node, const aiScene* scene)
 {
-	//Todo. This
-	//Mergificate models under one node to reduce glVertexAttribPointer calls.
-	 
-	return nullptr;
-
-
+	unique_ptr<Object> nodeObj(new Object());
+    
+    
+    return nodeObj;
 }
 
 unique_ptr<Object> LoadScene(const aiScene* scene)
 {
-	unique_ptr<Object> obj(new Object());	
+	unique_ptr<Object> obj(new Object());
+	unique_ptr<ArrayObject> meshArrObj(new ArrayObject());
 
-	vector<Object*> materials;
-	vector<Object*> meshes;
+	vector<unique_ptr<Object>> meshes;
+    vector<unique_ptr<Object>> nodes;
+    
+    
+    vector<Object*> unMaterials;
+    vector<Object*> unMeshes;
+    vector<Object*> unNodes;
+    
+    
+    
+    for(int i = 0; i < scene->mNumMaterials; i++)
+    {
+        auto ptr = LoadMaterial(scene->mMaterials[i]);
+        unMaterials.emplace_back(ptr.get());
+        string name = ((StringObject*)ptr->Get("name"))->Value;
+        obj->Set(name + "_material", move(ptr));
+    }
+    
+    
+    for(int i = 0; i < scene->mNumMeshes; i++)
+    {
+        meshes.emplace_back(move(LoadMesh(unMaterials, scene->mMeshes[i], scene)));
+    }
+    
+    
+    
+    
+    
+    
+    //Asset loading etc is done.
 
-    return nullptr;
+    for(auto&& mesh : meshes)
+    {
+        meshArrObj->Objects.emplace_back(move(mesh));
+    }
+    
+    obj->Set("meshes", move(meshArrObj));
+    
+
+    return obj;
 }
 
 
@@ -540,10 +692,37 @@ int main(int argc, const char* args[])
 	rootNode.Set("UInt16Array", vector < uint16_t > {1, 2, 3, 4, 5});
 	rootNode.Set("UInt8Array", vector < uint8_t > {1, 2, 3, 4, 5});
 	rootNode.Set("Float32Array", vector < float >(300, 3.0f));
+    
+    unique_ptr<Object> test(new Object());
+    test->Set("Something", "Another Thing");
+    rootNode.Set("SomethingObject", move(test));
+    
+    
 
 	file << "var " << rootNode.AssignedTo() << " = ";
 	rootNode.Print(file);
 	file << ";";
+    
+    
+    {
+        fstream otherFile("Other.js", fstream::out | fstream::binary);
+        Assimp::Importer importer;
+        
+        unsigned flags = 0;
+        flags |= aiProcess_CalcTangentSpace;
+        flags |= aiProcess_JoinIdenticalVertices;
+        flags |= aiProcess_Triangulate;
+        flags |= aiProcess_RemoveRedundantMaterials;
+        
+        
+        const aiScene* scene = importer.ReadFile("Scene.obj", flags);
+    
+        auto object = LoadScene(scene);
+        
+        otherFile << "var " << object->AssignedTo() << " = ";
+        object->Print(otherFile);
+        otherFile << ";";
+    }
 
 	return 0;
 }
