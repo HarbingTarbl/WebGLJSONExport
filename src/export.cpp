@@ -659,11 +659,6 @@ unique_ptr<Object> LoadScene(const aiScene* scene)
         meshes.emplace_back(move(LoadMesh(unMaterials, scene->mMeshes[i], scene)));
     }
     
-    
-    
-    
-    
-    
     //Asset loading etc is done.
 
     for(auto&& mesh : meshes)
