@@ -23,6 +23,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		E3441CD419AFD0A500B065B4 /* export.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = export.hpp; sourceTree = "<group>"; };
 		E3758F2519A9F60A00052963 /* WebGLJSONExport */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = WebGLJSONExport; sourceTree = BUILT_PRODUCTS_DIR; };
 		E3758F3219A9F67800052963 /* export.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = export.cpp; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -57,6 +58,7 @@
 		E3758F3119A9F67800052963 /* src */ = {
 			isa = PBXGroup;
 			children = (
+				E3441CD419AFD0A500B065B4 /* export.hpp */,
 				E3758F3219A9F67800052963 /* export.cpp */,
 			);
 			name = src;
@@ -200,7 +202,10 @@
 					/usr/local/include,
 				);
 				LIBRARY_SEARCH_PATHS = /usr/local/lib;
-				OTHER_LDFLAGS = "-lassimp";
+				OTHER_LDFLAGS = (
+					"-lassimp",
+					"-ljansson",
+				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Debug;
@@ -214,7 +219,10 @@
 					/usr/local/include,
 				);
 				LIBRARY_SEARCH_PATHS = /usr/local/lib;
-				OTHER_LDFLAGS = "-lassimp";
+				OTHER_LDFLAGS = (
+					"-lassimp",
+					"-ljansson",
+				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Release;
@@ -238,6 +246,7 @@
 				E3758F3019A9F60A00052963 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
