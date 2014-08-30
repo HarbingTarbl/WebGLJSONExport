@@ -40,6 +40,77 @@ class Attribute;
 class Mesh;
 struct json_t;
 
+
+class BoundingVolume
+{
+public:
+    fvec3 Center;
+    fvec3 Extents;
+    
+    void Union(const BoundingVolume& other);
+    void Transform(const fmat4& tran);
+    
+    inline fvec3 Min() const
+    {
+        return fvec3(Left(), Bottom(), Near());
+    }
+    
+    inline fvec3 Max() const
+    {
+        return fvec3(Right(), Top(), Far());
+    }
+    
+    inline float Width() const
+    {
+        return Extents.x * 2;
+    }
+    
+    inline float Height() const
+    {
+        return Extents.y * 2;
+    }
+    
+    inline float Depth() const
+    {
+        return Extents.z * 2;
+    }
+    
+    inline float Left() const
+    {
+        return Center.x - Extents.x;
+    }
+    
+    inline float Right() const
+    {
+        return Center.x + Extents.x;
+    }
+    
+    inline float Top() const
+    {
+        return Center.y + Extents.y;
+    }
+    
+    inline float Bottom() const
+    {
+        return Center.y - Extents.y;
+    }
+    
+    inline float Near() const
+    {
+        return Center.z - Extents.z;
+    }
+    
+    inline float Far() const
+    {
+        return Center.z + Extents.z;
+    }
+    
+    
+    json_t* CreateJSON();
+};
+
+
+
 class Model
 {
 public:
@@ -86,9 +157,12 @@ private:
 class Mesh
 {
 public:
-    unsigned long IndexStart;
+    unsigned long IndexOffset;
     unsigned long IndexCount;
+    unsigned long VertexCount;
     unsigned Index;
+    BoundingVolume Bounds;
+    string Name;
     
     Material* Material;
     
@@ -101,14 +175,15 @@ class Attribute
 {
 public:
     string Name;
+    unsigned Index;
     unsigned Size;
     unsigned Offset;
     
     Attribute() = default;
     Attribute(const Attribute&) = default;
     Attribute(Attribute&&) = default;
-    Attribute(const string& name, unsigned size, unsigned offset)
-    : Name(name), Offset(offset), Size(size)
+    Attribute(const string& name, unsigned index, unsigned size, unsigned offset)
+    : Name(name), Index(index), Offset(offset), Size(size)
     {
         
     }
@@ -125,13 +200,13 @@ public:
 
 
 
-
 class Object
 {
 public:
     string Name;
     vector<Mesh*> Meshes;
     fmat4 Transform;
+    BoundingVolume Bounds;
     
     Object(const aiNode* node, Model* model);
     

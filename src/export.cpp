@@ -4,6 +4,8 @@
 
 Mesh::Mesh(const aiMesh* mesh, Model* model)
 {
+    
+    Name = mesh->mName.C_Str();
     Index = (unsigned)model->Meshes.size();
     vector<float> vertices(mesh->mNumVertices * model->VertexSize);
     for(int i = 0; i < mesh->mNumVertices; i++)
@@ -55,14 +57,17 @@ Mesh::Mesh(const aiMesh* mesh, Model* model)
     }
     
     model->Write(vertices);
-    IndexStart = model->Write(indices);
+    IndexOffset = model->Write(indices) * model->IndexSize;
     IndexCount = mesh->mNumFaces * 3;
+    VertexCount = mesh->mNumVertices;
     
     Material = model->Materials[mesh->mMaterialIndex].get();
 }
 
 Model::Model(const aiScene* scene)
-: VertexCount(0), IndexCount(0), IndexSize(0), IndexOffset(0), VertexOffset(0), VertexSize(0)
+: VertexCount(0), IndexCount(0),
+IndexSize(2), ///HACK
+IndexOffset(0), VertexOffset(0), VertexSize(0)
 {
     Name = scene->mRootNode->mName.C_Str();
     
@@ -77,26 +82,26 @@ Model::Model(const aiScene* scene)
         
         if(mesh->HasPositions())
         {
-            attributes.emplace_back("Position", 3, vertSize * sizeof(float));
+            attributes.emplace_back("Position", attributes.size(), 3, vertSize * sizeof(float));
             vertSize += 3;
         }
         
         if(mesh->HasNormals())
         {
-            attributes.emplace_back("Normal", 3, vertSize * sizeof(float));
+            attributes.emplace_back("Normal", attributes.size(), 3, vertSize * sizeof(float));
             vertSize += 3;
         }
         
         if(mesh->HasTangentsAndBitangents())
         {
-            attributes.emplace_back("Tangent", 3, vertSize * sizeof(float));
-            attributes.emplace_back("Bitangent", 3, (vertSize + 3) * sizeof(float));
+            attributes.emplace_back("Tangent", attributes.size(), 3, vertSize * sizeof(float));
+            attributes.emplace_back("Bitangent", attributes.size(), 3, (vertSize + 3) * sizeof(float));
             vertSize += 6;
         }
         
         if(mesh->HasTextureCoords(0))
         {
-            attributes.emplace_back("UV0", 2, vertSize * sizeof(float));
+            attributes.emplace_back("UV0", attributes.size(), 2, vertSize * sizeof(float));
             vertSize += 2;
         }
         
@@ -131,6 +136,10 @@ Model::Model(const aiScene* scene)
     }
     
     Add(unique_ptr<Object>(new Object(scene->mRootNode, this)));
+    for(int i = 0; i < scene->mRootNode->mNumChildren; i++)
+    {
+        Add(unique_ptr<Object>(new Object(scene->mRootNode->mChildren[i], this)));
+    }
 }
 
 
@@ -229,6 +238,34 @@ Object::Object(const aiNode* node, Model* model)
     copy_n(&node->mTransformation.a1, 16, glm::value_ptr(Transform));
 }
 
+void BoundingVolume::Union(const BoundingVolume &other)
+{
+    auto min = glm::min(Min(), other.Min());
+    auto max = glm::max(Max(), other.Max());
+    
+    Center = (max + min) / 2.0f;
+    Extents = max - Center;
+}
+
+
+json_t* BoundingVolume::CreateJSON()
+{
+    auto obj = json_object();
+    auto item  = json_array();
+    json_array_append_new(item, json_real(Center.x));
+    json_array_append_new(item, json_real(Center.y));
+    json_array_append_new(item, json_real(Center.z));
+    json_object_set_new(obj, "Center", item);
+    
+    item = json_array();
+    json_array_append_new(item, json_real(Extents.x));
+    json_array_append_new(item, json_real(Extents.y));
+    json_array_append_new(item, json_real(Extents.z));
+    
+    json_object_set_new(obj, "Extents", item);
+    
+    return obj;
+}
 
 json_t* Object::CreateJSON()
 {
@@ -251,7 +288,8 @@ json_t* Object::CreateJSON()
 json_t* Mesh::CreateJSON()
 {
     auto obj = json_object();
-    json_object_set_new(obj, "IndexStart", json_integer(IndexStart));
+    json_object_set_new(obj, "Name", json_string(Name.c_str()));
+    json_object_set_new(obj, "IndexOffset", json_integer(IndexOffset));
     json_object_set_new(obj, "IndexCount", json_integer(IndexCount));
     json_object_set_new(obj, "Material", json_string(Material->Name.c_str()));
     return obj;
@@ -265,7 +303,20 @@ json_t* Model::CreateJSON()
     VertexOffset = 0;
     file.write((char*)(_Vertices.data()), sizeof(float) * _Vertices.size());
     IndexOffset = (unsigned)_Vertices.size() * sizeof(float);
-    file.write((char*)(_Indices.data()), VertexSize * _Indices.size());
+    
+    unsigned long long iOffset = 0;
+    for(int i = 0; i < Meshes.size(); i++)
+    {
+        cout << iOffset << endl;
+        uint16_t* elements = (uint16_t*)(_Indices.data() + Meshes[i]->IndexOffset);
+        for(int k = 0; k < Meshes[i]->IndexCount; k++)
+        {
+            elements[k] += iOffset;
+        }
+        iOffset += Meshes[i]->VertexCount;
+    }
+    
+    file.write((char*)(_Indices.data()), _Indices.size());
     
     auto obj = json_object();
     
@@ -367,6 +418,7 @@ json_t* Attribute::CreateJSON()
     auto sizeObj = json_integer(Size);
     auto offsetObj = json_integer(Offset);
     
+    json_object_set_new(obj, "Index", json_integer(Index));
     json_object_set_new(obj, "Size", sizeObj);
     json_object_set_new(obj, "Offset", offsetObj);
     
@@ -377,21 +429,24 @@ json_t* Attribute::CreateJSON()
 
 
 
+
 int main(int argc, const char* args[])
 {
+    if(argc < 2)
+        return 1;
     
     Assimp::Importer importer;
     unsigned flags = 0;
     flags |= aiProcess_Triangulate;
     flags |= aiProcess_RemoveRedundantMaterials;
-    flags |= aiProcess_OptimizeGraph;
+    //flags |= aiProcess_OptimizeGraph;
     flags |= aiProcess_OptimizeMeshes;
     flags |= aiProcess_JoinIdenticalVertices;
     flags |= aiProcess_ImproveCacheLocality;
     flags |= aiProcess_CalcTangentSpace;
 
     
-    const auto scene = importer.ReadFile("Scene.obj", flags);
+    const auto scene = importer.ReadFile(args[1], flags);
     
     Model model(scene);
 
