@@ -184,7 +184,8 @@ long long Model::Write(const vector<char>& indices)
 
 
 Material::Material(const aiMaterial* material, Model* model)
-: Roughness(0), SpecularPower(0), DiffuseCoeff(0), AmbientCoeff(0), FresnelPower(0)
+: Roughness(0), SpecularPower(0), DiffuseCoeff(0), AmbientCoeff(0), FresnelPower(0),
+AmbientColor(0), DiffuseColor(0), SpecularColor(0)
 {
     Index = (unsigned)model->Materials.size();
     aiString name;
@@ -207,6 +208,8 @@ Material::Material(const aiMaterial* material, Model* model)
         SpecularTextureName = name.C_Str();
     }
     
+    aiColor3D tempColor;
+    
     material->Get(AI_MATKEY_SHININESS, Roughness);
     material->Get(AI_MATKEY_SHININESS_STRENGTH, SpecularPower);
     aiShadingMode shadingModel;
@@ -223,6 +226,13 @@ Material::Material(const aiMaterial* material, Model* model)
         {aiShadingMode_Phong, "Phong"},
         {aiShadingMode_Toon, "Toon"},
     };
+    
+    material->Get(AI_MATKEY_COLOR_AMBIENT, tempColor);
+    copy_n(&tempColor.r, 3, &AmbientColor.x);
+    material->Get(AI_MATKEY_COLOR_DIFFUSE, tempColor);
+    copy_n(&tempColor.r, 3, &DiffuseColor.x);
+    material->Get(AI_MATKEY_COLOR_SPECULAR, tempColor);
+    copy_n(&tempColor.r, 3, &SpecularColor.x);
     
     ShadingModel = modeLookup[(int)shadingModel];
 }
@@ -375,39 +385,34 @@ json_t* Model::CreateJSON()
     return obj;
 }
 
+static json_t* CreateJSON(const fvec3& vec)
+{
+    auto arr = json_array();
+    json_array_append_new(arr, json_real(vec.x));
+    json_array_append_new(arr, json_real(vec.y));
+    json_array_append_new(arr, json_real(vec.z));
+    return arr;
+}
+
+
 json_t* Material::CreateJSON()
 {
     auto obj = json_object();
     
     auto item = json_string(Name.c_str());
     json_object_set_new(obj, "Name", item);
-    
-    item = json_string(ShadingModel.c_str());
-    json_object_set_new(obj, "ShadingModel", item);
-    
-    item = json_string(DiffuseTextureName.c_str());
-    json_object_set_new(obj, "DiffuseTexture", item);
-    
-    item = json_string(NormalTextureName.c_str());
-    json_object_set_new(obj, "NormalTexture", item);
-    
-    item = json_string(SpecularTextureName.c_str());
-    json_object_set_new(obj, "SpecularTexture", item);
-    
-    item = json_real(AmbientCoeff);
-    json_object_set_new(obj, "AmbientCoeff", item);
-    
-    item = json_real(DiffuseCoeff);
-    json_object_set_new(obj, "DiffuseCoeff", item);
-    
-    item = json_real(SpecularPower);
-    json_object_set_new(obj, "SpecularPower", item);
-    
-    item = json_real(FresnelPower);
-    json_object_set_new(obj, "FresnelPower", item);
-    
-    item = json_real(Roughness);
-    json_object_set_new(obj, "Roughness", item);
+    json_object_set_new(obj, "ShadingModel", json_string(ShadingModel.c_str()));
+    json_object_set_new(obj, "DiffuseTexture", json_string(DiffuseTextureName.c_str()));
+    json_object_set_new(obj, "NormalTexture", json_string(NormalTextureName.c_str()));
+    json_object_set_new(obj, "SpecularTexture", json_string(SpecularTextureName.c_str()));
+    json_object_set_new(obj, "AmbientCoeff", json_real(AmbientCoeff));
+    json_object_set_new(obj, "DiffuseCoeff", json_real(DiffuseCoeff));
+    json_object_set_new(obj, "SpecularPower", json_real(SpecularPower));
+    json_object_set_new(obj, "FresnelPower", json_real(FresnelPower));
+    json_object_set_new(obj, "Roughness", json_real(Roughness));
+    json_object_set_new(obj, "DiffuseColor", ::CreateJSON(DiffuseColor));
+    json_object_set_new(obj, "AmbientColor", ::CreateJSON(AmbientColor));
+    json_object_set_new(obj, "SpecularColor", ::CreateJSON(SpecularColor));
 
     return obj;
 }
@@ -424,7 +429,6 @@ json_t* Attribute::CreateJSON()
     
     return obj;
 }
-
 
 
 

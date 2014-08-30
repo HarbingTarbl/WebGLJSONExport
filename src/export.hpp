@@ -224,9 +224,9 @@ public:
     string NormalTextureName;
     string SpecularTextureName;
     
-    fvec4 AmbientColor;
-    fvec4 DiffuseColor;
-    fvec4 SpecularColor;
+    fvec3 AmbientColor;
+    fvec3 DiffuseColor;
+    fvec3 SpecularColor;
     
     float AmbientCoeff;
     float DiffuseCoeff;
