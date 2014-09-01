@@ -212,8 +212,8 @@ AmbientColor(0), DiffuseColor(0), SpecularColor(0)
     
     material->Get(AI_MATKEY_SHININESS, Roughness);
     material->Get(AI_MATKEY_SHININESS_STRENGTH, SpecularPower);
+    material->Get(AI_MATKEY_
     aiShadingMode shadingModel;
-    material->Get(AI_MATKEY_SHADING_MODEL, shadingModel);
     unordered_map<int, string> modeLookup = {
         {aiShadingMode_Blinn, "Blinn"},
         {aiShadingMode_CookTorrance, "CookTorrance"},
@@ -233,6 +233,8 @@ AmbientColor(0), DiffuseColor(0), SpecularColor(0)
     copy_n(&tempColor.r, 3, &DiffuseColor.x);
     material->Get(AI_MATKEY_COLOR_SPECULAR, tempColor);
     copy_n(&tempColor.r, 3, &SpecularColor.x);
+    
+    
     
     ShadingModel = modeLookup[(int)shadingModel];
 }
