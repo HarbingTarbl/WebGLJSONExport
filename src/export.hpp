@@ -220,9 +220,8 @@ public:
     unsigned Index;
     string Name;
     string ShadingModel;
-    string DiffuseTextureName;
-    string NormalTextureName;
-    string SpecularTextureName;
+
+    unordered_multimap<string, vector<string>> Textures;
     
     fvec3 AmbientColor;
     fvec3 DiffuseColor;

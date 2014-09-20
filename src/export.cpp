@@ -55,9 +55,18 @@ Mesh::Mesh(const aiMesh* mesh, Model* model)
             copy_n(mesh->mFaces[i].mIndices, 3, indice + i * 3);
         }
     }
+    else if(model->IndexSize == 4)
+    {
+        uint32_t* indice = (uint32_t*)indices.data();
+
+        for(int i = 0; i < mesh->mNumFaces; i++)
+        {
+            copy_n(mesh->mFaces[i].mIndices, 3, indice + i * 3);
+        }
+    }
     
     model->Write(vertices);
-    IndexOffset = model->Write(indices) * model->IndexSize;
+    IndexOffset = model->Write(indices);
     IndexCount = mesh->mNumFaces * 3;
     VertexCount = mesh->mNumVertices;
     
@@ -66,42 +75,48 @@ Mesh::Mesh(const aiMesh* mesh, Model* model)
 
 Model::Model(const aiScene* scene)
 : VertexCount(0), IndexCount(0),
-IndexSize(2), ///HACK
+IndexSize(0),
 IndexOffset(0), VertexOffset(0), VertexSize(0)
 {
     Name = scene->mRootNode->mName.C_Str();
-    
     for(int i = 0; i < scene->mNumMeshes; i++)
     {
         auto mesh = scene->mMeshes[i];
         VertexCount += mesh->mNumVertices;
         IndexCount += mesh->mNumFaces * 3;
-        IndexSize = max<unsigned>(IndexSize, IndexCount > numeric_limits<uint8_t>::max() ? 2 : 1);
+        if(IndexCount > numeric_limits<uint16_t>::max())
+            IndexSize = 4 > IndexSize ? 4 : IndexSize;
+        else if(IndexCount > numeric_limits<uint8_t>::max())
+            IndexSize = 2 > IndexSize ? 2 : IndexSize;
+        else
+            IndexSize = 1 > IndexSize ? 1 : IndexSize;
+        
+        
         unsigned vertSize = 0;
         vector<Attribute> attributes;
         
         if(mesh->HasPositions())
         {
-            attributes.emplace_back("Position", attributes.size(), 3, vertSize * sizeof(float));
+            attributes.emplace_back("position", attributes.size(), 3, vertSize * sizeof(float));
             vertSize += 3;
         }
         
         if(mesh->HasNormals())
         {
-            attributes.emplace_back("Normal", attributes.size(), 3, vertSize * sizeof(float));
+            attributes.emplace_back("normal", attributes.size(), 3, vertSize * sizeof(float));
             vertSize += 3;
         }
         
         if(mesh->HasTangentsAndBitangents())
         {
-            attributes.emplace_back("Tangent", attributes.size(), 3, vertSize * sizeof(float));
-            attributes.emplace_back("Bitangent", attributes.size(), 3, (vertSize + 3) * sizeof(float));
+            attributes.emplace_back("tangent", attributes.size(), 3, vertSize * sizeof(float));
+            attributes.emplace_back("bitangent", attributes.size(), 3, (vertSize + 3) * sizeof(float));
             vertSize += 6;
         }
         
         if(mesh->HasTextureCoords(0))
         {
-            attributes.emplace_back("UV0", attributes.size(), 2, vertSize * sizeof(float));
+            attributes.emplace_back("uv0", attributes.size(), 2, vertSize * sizeof(float));
             vertSize += 2;
         }
         
@@ -122,8 +137,8 @@ IndexOffset(0), VertexOffset(0), VertexSize(0)
         }
     }
     
-    _Indices.reserve(IndexCount);
-    _Vertices.reserve(VertexCount);
+    //_Indices.reserve(IndexCount);
+    //_Vertices.reserve(VertexCount);
     
     for(int i = 0; i < scene->mNumMaterials; i++)
     {
@@ -176,7 +191,7 @@ long long Model::Write(const vector<float>& vertices)
 
 long long Model::Write(const vector<char>& indices)
 {
-    auto offset = _Indices.size() / IndexSize;
+    auto offset = _Indices.size();
     _Indices.insert(_Indices.end(), indices.begin(), indices.end());
     return offset;
 }
@@ -193,26 +208,44 @@ AmbientColor(0), DiffuseColor(0), SpecularColor(0)
     material->Get(AI_MATKEY_NAME, name);
     Name = string(name.C_Str());
     
-    if(material->GetTexture(aiTextureType_DIFFUSE, 0, &name) == aiReturn_SUCCESS)
-    {
-        DiffuseTextureName = name.C_Str();
+    
+    vector<string> mapTypes = {
+        "none",
+        "diffuse",
+        "specular",
+        "ambient",
+        "emissive",
+        "height",
+        "normals",
+        "shininess",
+        "opacity",
+        "displacement",
+        "lightmap",
+        "reflection",
+        "unknown"
+    };
+    
+    for (int i = 1; i < mapTypes.size(); i++) {
+        auto k = material->GetTextureCount((aiTextureType)i);
+        for(int j = 0; j < k; j++)
+        {
+            aiString path;
+            material->GetTexture((aiTextureType)i, j, &path);
+            auto f = Textures.find(mapTypes[i]);
+            if(f == Textures.end())
+            {
+                f = Textures.emplace_hint(f, mapTypes[i] + to_string(j), vector<string>());
+            }
+            
+            f->second.emplace_back(string(path.C_Str()));
+        }
     }
     
-    if(material->GetTexture(aiTextureType_NORMALS, 0, &name) == aiReturn_SUCCESS)
-    {
-        NormalTextureName = name.C_Str();
-    }
-    
-    if(material->GetTexture(aiTextureType_SPECULAR, 0, &name) == aiReturn_SUCCESS)
-    {
-        SpecularTextureName = name.C_Str();
-    }
     
     aiColor3D tempColor;
     
     material->Get(AI_MATKEY_SHININESS, Roughness);
     material->Get(AI_MATKEY_SHININESS_STRENGTH, SpecularPower);
-    material->Get(AI_MATKEY_
     aiShadingMode shadingModel;
     unordered_map<int, string> modeLookup = {
         {aiShadingMode_Blinn, "Blinn"},
@@ -233,8 +266,6 @@ AmbientColor(0), DiffuseColor(0), SpecularColor(0)
     copy_n(&tempColor.r, 3, &DiffuseColor.x);
     material->Get(AI_MATKEY_COLOR_SPECULAR, tempColor);
     copy_n(&tempColor.r, 3, &SpecularColor.x);
-    
-    
     
     ShadingModel = modeLookup[(int)shadingModel];
 }
@@ -267,14 +298,14 @@ json_t* BoundingVolume::CreateJSON()
     json_array_append_new(item, json_real(Center.x));
     json_array_append_new(item, json_real(Center.y));
     json_array_append_new(item, json_real(Center.z));
-    json_object_set_new(obj, "Center", item);
+    json_object_set_new(obj, "center", item);
     
     item = json_array();
     json_array_append_new(item, json_real(Extents.x));
     json_array_append_new(item, json_real(Extents.y));
     json_array_append_new(item, json_real(Extents.z));
     
-    json_object_set_new(obj, "Extents", item);
+    json_object_set_new(obj, "extents", item);
     
     return obj;
 }
@@ -287,23 +318,23 @@ json_t* Object::CreateJSON()
     {
         json_array_append_new(transformArray, json_real(glm::value_ptr(Transform)[i]));
     }
-    json_object_set_new(obj, "Transform", transformArray);
+    json_object_set_new(obj, "transform", transformArray);
     auto meshes = json_array();
     for(auto&& mesh : Meshes)
     {
         json_array_append_new(meshes, json_integer(mesh->Index));
     }
-    json_object_set_new(obj, "Meshes", meshes);
+    json_object_set_new(obj, "meshes", meshes);
     return obj;
 }
 
 json_t* Mesh::CreateJSON()
 {
     auto obj = json_object();
-    json_object_set_new(obj, "Name", json_string(Name.c_str()));
-    json_object_set_new(obj, "IndexOffset", json_integer(IndexOffset));
-    json_object_set_new(obj, "IndexCount", json_integer(IndexCount));
-    json_object_set_new(obj, "Material", json_string(Material->Name.c_str()));
+    json_object_set_new(obj, "name", json_string(Name.c_str()));
+    json_object_set_new(obj, "indexOffset", json_integer(IndexOffset));
+    json_object_set_new(obj, "indexCount", json_integer(IndexCount));
+    json_object_set_new(obj, "material", json_string(Material->Name.c_str()));
     return obj;
 }
 
@@ -317,15 +348,42 @@ json_t* Model::CreateJSON()
     IndexOffset = (unsigned)_Vertices.size() * sizeof(float);
     
     unsigned long long iOffset = 0;
-    for(int i = 0; i < Meshes.size(); i++)
+    if(IndexSize == 4)
     {
-        cout << iOffset << endl;
-        uint16_t* elements = (uint16_t*)(_Indices.data() + Meshes[i]->IndexOffset);
-        for(int k = 0; k < Meshes[i]->IndexCount; k++)
+        for(int i = 0; i < Meshes.size(); i++)
         {
-            elements[k] += iOffset;
+            auto elements = (uint32_t*)(_Indices.data() + Meshes[i]->IndexOffset);
+            for(int k = 0; k < Meshes[i]->IndexCount; k++)
+            {
+                elements[k] += iOffset;
+            }
+            iOffset += Meshes[i]->VertexCount;
         }
-        iOffset += Meshes[i]->VertexCount;
+        
+    }
+    else if(IndexSize == 2)
+    {
+        for(int i = 0; i < Meshes.size(); i++)
+        {
+            auto elements = (uint16_t*)(_Indices.data() + Meshes[i]->IndexOffset);
+            for(int k = 0; k < Meshes[i]->IndexCount; k++)
+            {
+                elements[k] += iOffset;
+            }
+            iOffset += Meshes[i]->VertexCount;
+        }
+    }
+    else
+    {
+        for(int i = 0; i < Meshes.size(); i++)
+        {
+            auto elements = (uint8_t*)(_Indices.data() + Meshes[i]->IndexOffset);
+            for(int k = 0; k < Meshes[i]->IndexCount; k++)
+            {
+                elements[k] += iOffset;
+            }
+            iOffset += Meshes[i]->VertexCount;
+        }
     }
     
     file.write((char*)(_Indices.data()), _Indices.size());
@@ -333,56 +391,56 @@ json_t* Model::CreateJSON()
     auto obj = json_object();
     
     auto item  = json_string(Name.c_str());
-    json_object_set_new(obj, "Name", item);
+    json_object_set_new(obj, "name", item);
     
     item = json_string((Name + ".modeldata").c_str());
-    json_object_set_new(obj, "Data", item);
+    json_object_set_new(obj, "data", item);
     
     item = json_integer(VertexCount);
-    json_object_set_new(obj, "VertexCount", item);
+    json_object_set_new(obj, "vertexCount", item);
     
     item = json_integer(IndexCount);
-    json_object_set_new(obj, "IndexCount", item);
+    json_object_set_new(obj, "indexCount", item);
     
     item = json_integer(IndexSize);
-    json_object_set_new(obj, "IndexSize", item);
+    json_object_set_new(obj, "indexSize", item);
     
     item = json_integer(VertexOffset);
-    json_object_set_new(obj, "VertexOffset", item);
+    json_object_set_new(obj, "vertexOffset", item);
     
     item = json_integer(IndexOffset);
-    json_object_set_new(obj, "IndexOffset", item);
+    json_object_set_new(obj, "indexOffset", item);
     
     item = json_integer(VertexSize);
-    json_object_set_new(obj, "VertexSize", item);
+    json_object_set_new(obj, "vertexSize", item);
     
     item = json_array();
     for(auto&& mesh : Meshes)
     {
         json_array_append_new(item, mesh->CreateJSON());
     }
-    json_object_set_new(obj, "Meshes", item);
+    json_object_set_new(obj, "meshes", item);
     
     item = json_object();
     for(auto&& mat : Materials)
     {
         json_object_set_new(item, mat->Name.c_str(), mat->CreateJSON());
     }
-    json_object_set_new(obj, "Materials", item);
+    json_object_set_new(obj, "materials", item);
     
     item = json_object();
     for(auto&& attr : Attributes)
     {
         json_object_set_new(item, attr->Name.c_str(), attr->CreateJSON());
     }
-    json_object_set_new(obj, "Attributes", item);
+    json_object_set_new(obj, "attributes", item);
     
     item = json_object();
     for(auto&& obj : Objects)
     {
         json_object_set_new(item, obj->Name.c_str(), obj->CreateJSON());
     }
-    json_object_set_new(obj, "Objects", item);
+    json_object_set_new(obj, "objects", item);
     
     return obj;
 }
@@ -404,17 +462,25 @@ json_t* Material::CreateJSON()
     auto item = json_string(Name.c_str());
     json_object_set_new(obj, "Name", item);
     json_object_set_new(obj, "ShadingModel", json_string(ShadingModel.c_str()));
-    json_object_set_new(obj, "DiffuseTexture", json_string(DiffuseTextureName.c_str()));
-    json_object_set_new(obj, "NormalTexture", json_string(NormalTextureName.c_str()));
-    json_object_set_new(obj, "SpecularTexture", json_string(SpecularTextureName.c_str()));
-    json_object_set_new(obj, "AmbientCoeff", json_real(AmbientCoeff));
-    json_object_set_new(obj, "DiffuseCoeff", json_real(DiffuseCoeff));
-    json_object_set_new(obj, "SpecularPower", json_real(SpecularPower));
-    json_object_set_new(obj, "FresnelPower", json_real(FresnelPower));
-    json_object_set_new(obj, "Roughness", json_real(Roughness));
-    json_object_set_new(obj, "DiffuseColor", ::CreateJSON(DiffuseColor));
-    json_object_set_new(obj, "AmbientColor", ::CreateJSON(AmbientColor));
-    json_object_set_new(obj, "SpecularColor", ::CreateJSON(SpecularColor));
+    
+    auto textureMap = json_object();
+    for(auto&& kv : Textures)
+    {
+        for(int i = 0; i < kv.second.size(); i++)
+        {
+            json_object_set_new(textureMap, kv.first.c_str(), json_string(kv.second[i].c_str()));
+        }
+    }
+    
+    json_object_set_new(obj, "textures", textureMap);
+    json_object_set_new(obj, "ambientCoeff", json_real(AmbientCoeff));
+    json_object_set_new(obj, "diffuseCoeff", json_real(DiffuseCoeff));
+    json_object_set_new(obj, "specularPower", json_real(SpecularPower));
+    json_object_set_new(obj, "fresnelPower", json_real(FresnelPower));
+    json_object_set_new(obj, "roughness", json_real(Roughness));
+    json_object_set_new(obj, "diffuseColor", ::CreateJSON(DiffuseColor));
+    json_object_set_new(obj, "ambientColor", ::CreateJSON(AmbientColor));
+    json_object_set_new(obj, "specularColor", ::CreateJSON(SpecularColor));
 
     return obj;
 }
@@ -445,11 +511,13 @@ int main(int argc, const char* args[])
     unsigned flags = 0;
     flags |= aiProcess_Triangulate;
     flags |= aiProcess_RemoveRedundantMaterials;
-    //flags |= aiProcess_OptimizeGraph;
+    flags |= aiProcess_OptimizeGraph;
     flags |= aiProcess_OptimizeMeshes;
     flags |= aiProcess_JoinIdenticalVertices;
     flags |= aiProcess_ImproveCacheLocality;
     flags |= aiProcess_CalcTangentSpace;
+    flags |= aiProcess_FindInstances;
+    flags |= aiProcess_FlipUVs;
 
     
     const auto scene = importer.ReadFile(args[1], flags);
