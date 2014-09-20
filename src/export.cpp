@@ -248,16 +248,16 @@ AmbientColor(0), DiffuseColor(0), SpecularColor(0)
     material->Get(AI_MATKEY_SHININESS_STRENGTH, SpecularPower);
     aiShadingMode shadingModel;
     unordered_map<int, string> modeLookup = {
-        {aiShadingMode_Blinn, "Blinn"},
-        {aiShadingMode_CookTorrance, "CookTorrance"},
-        {aiShadingMode_Flat, "Flat"},
-        {aiShadingMode_Fresnel, "Fresnel"},
-        {aiShadingMode_Gouraud, "Gouraund"},
-        {aiShadingMode_Minnaert, "Minnaert"},
-        {aiShadingMode_NoShading, "None"},
-        {aiShadingMode_OrenNayar, "OrenNayar"},
-        {aiShadingMode_Phong, "Phong"},
-        {aiShadingMode_Toon, "Toon"},
+        {aiShadingMode_Blinn, "blinn"},
+        {aiShadingMode_CookTorrance, "cooktorrance"},
+        {aiShadingMode_Flat, "flat"},
+        {aiShadingMode_Fresnel, "fresnel"},
+        {aiShadingMode_Gouraud, "gouraund"},
+        {aiShadingMode_Minnaert, "minnaert"},
+        {aiShadingMode_NoShading, "none"},
+        {aiShadingMode_OrenNayar, "orenNayar"},
+        {aiShadingMode_Phong, "phong"},
+        {aiShadingMode_Toon, "toon"},
     };
     
     material->Get(AI_MATKEY_COLOR_AMBIENT, tempColor);
@@ -460,8 +460,8 @@ json_t* Material::CreateJSON()
     auto obj = json_object();
     
     auto item = json_string(Name.c_str());
-    json_object_set_new(obj, "Name", item);
-    json_object_set_new(obj, "ShadingModel", json_string(ShadingModel.c_str()));
+    json_object_set_new(obj, "name", item);
+    json_object_set_new(obj, "shadingModel", json_string(ShadingModel.c_str()));
     
     auto textureMap = json_object();
     for(auto&& kv : Textures)
@@ -491,9 +491,9 @@ json_t* Attribute::CreateJSON()
     auto sizeObj = json_integer(Size);
     auto offsetObj = json_integer(Offset);
     
-    json_object_set_new(obj, "Index", json_integer(Index));
-    json_object_set_new(obj, "Size", sizeObj);
-    json_object_set_new(obj, "Offset", offsetObj);
+    json_object_set_new(obj, "index", json_integer(Index));
+    json_object_set_new(obj, "size", sizeObj);
+    json_object_set_new(obj, "offset", offsetObj);
     
     return obj;
 }
