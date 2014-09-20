@@ -68,3 +68,5 @@ packages/
 #XCode 
 DerivedData/
 *.xcuserdatad/
+
+include/
