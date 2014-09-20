@@ -41,7 +41,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>$(JANSSON_PATH)\include;$(ASSIMP_PATH)\include;$(IncludePath)</IncludePath>
+    <IncludePath>..\..\include;$(JANSSON_PATH)\include;$(ASSIMP_PATH)\include;$(IncludePath)</IncludePath>
     <LibraryPath>$(ASSIMP_PATH)\lib;$(JANSSON_PATH)\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -80,6 +80,9 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\export.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\src\export.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

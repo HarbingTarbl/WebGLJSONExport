@@ -181,7 +181,6 @@ public:
     
     Attribute() = default;
     Attribute(const Attribute&) = default;
-    Attribute(Attribute&&) = default;
     Attribute(const string& name, unsigned index, unsigned size, unsigned offset)
     : Name(name), Index(index), Offset(offset), Size(size)
     {
