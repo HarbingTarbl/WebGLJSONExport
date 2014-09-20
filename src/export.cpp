@@ -4,10 +4,10 @@
 
 Mesh::Mesh(const aiMesh* mesh, Model* model)
 {
-    
     Name = mesh->mName.C_Str();
     Index = (unsigned)model->Meshes.size();
     vector<float> vertices(mesh->mNumVertices * model->VertexSize);
+
     for(int i = 0; i < mesh->mNumVertices; i++)
     {
         int ugly = 0;
@@ -32,13 +32,13 @@ Mesh::Mesh(const aiMesh* mesh, Model* model)
         
         if(mesh->HasTextureCoords(0))
         {
-            copy_n(&mesh->mTextureCoords[0][i].x, 3, vertices.data() + i * model->VertexSize + ugly);
+            copy_n(&mesh->mTextureCoords[0][i].x, 2, vertices.data() + i * model->VertexSize + ugly);
             ugly += 2;
         }
     }
-    
+
     vector<char> indices(mesh->mNumFaces * 3 * model->IndexSize);
-    
+	
     if(model->IndexSize == 1)
     {
         uint8_t* indice = (uint8_t*)indices.data();
@@ -55,22 +55,24 @@ Mesh::Mesh(const aiMesh* mesh, Model* model)
             copy_n(mesh->mFaces[i].mIndices, 3, indice + i * 3);
         }
     }
-    else if(model->IndexSize == 4)
-    {
-        uint32_t* indice = (uint32_t*)indices.data();
+	else if (model->IndexSize == 4)
+	{
+		uint32_t* indice = (uint32_t*)indices.data();
 
-        for(int i = 0; i < mesh->mNumFaces; i++)
-        {
-            copy_n(mesh->mFaces[i].mIndices, 3, indice + i * 3);
-        }
-    }
-    
+		for (int i = 0; i < mesh->mNumFaces; i++)
+		{
+			copy_n(mesh->mFaces[i].mIndices, 3, indice + i * 3);
+		}
+
+	}
+
     model->Write(vertices);
     IndexOffset = model->Write(indices);
     IndexCount = mesh->mNumFaces * 3;
     VertexCount = mesh->mNumVertices;
     
     Material = model->Materials[mesh->mMaterialIndex].get();
+	
 }
 
 Model::Model(const aiScene* scene)
@@ -412,7 +414,7 @@ json_t* Model::CreateJSON()
     item = json_integer(IndexOffset);
     json_object_set_new(obj, "indexOffset", item);
     
-    item = json_integer(VertexSize);
+    item = json_integer(VertexSize * sizeof(float));
     json_object_set_new(obj, "vertexSize", item);
     
     item = json_array();
@@ -512,7 +514,7 @@ int main(int argc, const char* args[])
     unsigned flags = 0;
     flags |= aiProcess_Triangulate;
     flags |= aiProcess_RemoveRedundantMaterials;
-    flags |= aiProcess_OptimizeGraph;
+   // flags |= aiProcess_OptimizeGraph;
     flags |= aiProcess_OptimizeMeshes;
     flags |= aiProcess_JoinIdenticalVertices;
     flags |= aiProcess_ImproveCacheLocality;
