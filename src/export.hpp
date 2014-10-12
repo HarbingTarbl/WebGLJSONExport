@@ -225,12 +225,14 @@ public:
     fvec3 AmbientColor;
     fvec3 DiffuseColor;
     fvec3 SpecularColor;
+    fvec3 EmissiveColor;
+    fvec3 ReflectiveColor;
     
-    float AmbientCoeff;
-    float DiffuseCoeff;
-    float SpecularPower;
-    float FresnelPower;
-    float Roughness;
+    float Shininess;
+    float ShininessStrength;
+    float IOR;
+    float Gloss;
+    float BumpScale;
     
     Material(const aiMaterial* material, Model* model);
     

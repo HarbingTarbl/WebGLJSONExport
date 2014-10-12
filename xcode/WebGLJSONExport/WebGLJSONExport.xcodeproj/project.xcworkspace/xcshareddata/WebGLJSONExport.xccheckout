@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>IDESourceControlProjectFavoriteDictionaryKey</key>
+	<false/>
+	<key>IDESourceControlProjectIdentifier</key>
+	<string>D42C8998-CAF5-450C-97FA-417C5A820895</string>
+	<key>IDESourceControlProjectName</key>
+	<string>WebGLJSONExport</string>
+	<key>IDESourceControlProjectOriginsDictionary</key>
+	<dict>
+		<key>D4C98E9A1A3B621CB035712F630A3702C2642A69</key>
+		<string>https://github.com/HarbingTarbl/WebGLJSONExport</string>
+	</dict>
+	<key>IDESourceControlProjectPath</key>
+	<string>xcode/WebGLJSONExport/WebGLJSONExport.xcodeproj</string>
+	<key>IDESourceControlProjectRelativeInstallPathDictionary</key>
+	<dict>
+		<key>D4C98E9A1A3B621CB035712F630A3702C2642A69</key>
+		<string>../../../..</string>
+	</dict>
+	<key>IDESourceControlProjectURL</key>
+	<string>https://github.com/HarbingTarbl/WebGLJSONExport</string>
+	<key>IDESourceControlProjectVersion</key>
+	<integer>111</integer>
+	<key>IDESourceControlProjectWCCIdentifier</key>
+	<string>D4C98E9A1A3B621CB035712F630A3702C2642A69</string>
+	<key>IDESourceControlProjectWCConfigurations</key>
+	<array>
+		<dict>
+			<key>IDESourceControlRepositoryExtensionIdentifierKey</key>
+			<string>public.vcs.git</string>
+			<key>IDESourceControlWCCIdentifierKey</key>
+			<string>D4C98E9A1A3B621CB035712F630A3702C2642A69</string>
+			<key>IDESourceControlWCCName</key>
+			<string>WebGLJSONExport</string>
+		</dict>
+	</array>
+</dict>
+</plist>

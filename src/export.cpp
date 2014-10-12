@@ -201,7 +201,7 @@ long long Model::Write(const vector<char>& indices)
 
 
 Material::Material(const aiMaterial* material, Model* model)
-: Roughness(0), SpecularPower(0), DiffuseCoeff(0), AmbientCoeff(0), FresnelPower(0),
+: ShininessStrength(0), Shininess(0), Gloss(0.0),
 AmbientColor(0), DiffuseColor(0), SpecularColor(0)
 {
     Index = (unsigned)model->Materials.size();
@@ -246,18 +246,24 @@ AmbientColor(0), DiffuseColor(0), SpecularColor(0)
     
     aiColor3D tempColor;
     
-    material->Get(AI_MATKEY_SHININESS, Roughness);
-    material->Get(AI_MATKEY_SHININESS_STRENGTH, SpecularPower);
+    material->Get(AI_MATKEY_SHININESS, Shininess);
+    material->Get(AI_MATKEY_SHININESS_STRENGTH, ShininessStrength);
+    material->Get(AI_MATKEY_REFRACTI, IOR);
+    material->Get(AI_MATKEY_REFLECTIVITY, Gloss);
+    material->Get(AI_MATKEY_BUMPSCALING, BumpScale);
+    
     aiShadingMode shadingModel;
+
 	material->Get(AI_MATKEY_SHADING_MODEL, shadingModel);
     unordered_map<int, string> modeLookup = {
+        {0, "unknown"},
         {aiShadingMode_Blinn, "blinn"},
         {aiShadingMode_CookTorrance, "cooktorrance"},
         {aiShadingMode_Flat, "flat"},
         {aiShadingMode_Fresnel, "fresnel"},
         {aiShadingMode_Gouraud, "gouraund"},
         {aiShadingMode_Minnaert, "minnaert"},
-        {aiShadingMode_NoShading, "none"},
+        {aiShadingMode_NoShading, "flat"},
         {aiShadingMode_OrenNayar, "orenNayar"},
         {aiShadingMode_Phong, "phong"},
         {aiShadingMode_Toon, "toon"},
@@ -269,6 +275,10 @@ AmbientColor(0), DiffuseColor(0), SpecularColor(0)
     copy_n(&tempColor.r, 3, &DiffuseColor.x);
     material->Get(AI_MATKEY_COLOR_SPECULAR, tempColor);
     copy_n(&tempColor.r, 3, &SpecularColor.x);
+    material->Get(AI_MATKEY_COLOR_EMISSIVE, tempColor);
+    copy_n(&tempColor.r, 3, &EmissiveColor.x);
+    material->Get(AI_MATKEY_COLOR_REFLECTIVE, tempColor);
+    copy_n(&tempColor.r, 3, &ReflectiveColor.x);
     
     ShadingModel = modeLookup[(int)shadingModel];
 }
@@ -476,14 +486,16 @@ json_t* Material::CreateJSON()
     }
     
     json_object_set_new(obj, "textures", textureMap);
-    json_object_set_new(obj, "ambientCoeff", json_real(AmbientCoeff));
-    json_object_set_new(obj, "diffuseCoeff", json_real(DiffuseCoeff));
-    json_object_set_new(obj, "specularPower", json_real(SpecularPower));
-    json_object_set_new(obj, "fresnelPower", json_real(FresnelPower));
-    json_object_set_new(obj, "roughness", json_real(Roughness));
+    json_object_set_new(obj, "shininess", json_real(Shininess));
+    json_object_set_new(obj, "shininessStrength", json_real(ShininessStrength));
+    json_object_set_new(obj, "ior", json_real(IOR));
+    json_object_set_new(obj, "gloss", json_real(Gloss));
+    json_object_set_new(obj, "bumpScale", json_real(BumpScale));
     json_object_set_new(obj, "diffuseColor", ::CreateJSON(DiffuseColor));
     json_object_set_new(obj, "ambientColor", ::CreateJSON(AmbientColor));
     json_object_set_new(obj, "specularColor", ::CreateJSON(SpecularColor));
+    json_object_set_new(obj, "emissiveColor", ::CreateJSON(EmissiveColor));
+    json_object_set_new(obj, "reflectiveColor", ::CreateJSON(ReflectiveColor));
 
     return obj;
 }
@@ -514,7 +526,7 @@ int main(int argc, const char* args[])
     unsigned flags = 0;
     flags |= aiProcess_Triangulate;
     flags |= aiProcess_RemoveRedundantMaterials;
-   // flags |= aiProcess_OptimizeGraph;
+    //flags |= aiProcess_OptimizeGraph;
     flags |= aiProcess_OptimizeMeshes;
     flags |= aiProcess_JoinIdenticalVertices;
     flags |= aiProcess_ImproveCacheLocality;
